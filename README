@@ -1,0 +1,16 @@
+Production Memcheck
+
+GIT:
+        https://github.com/IcebrakerCZ/ProductionMemcheck.git
+
+NOTES:
+
+
+LICENSE:
+        LGPLv3+
+
+AUTHORS:
+        Jan Horak
+
+REQUIREMENTS:
+        C++, Linux
