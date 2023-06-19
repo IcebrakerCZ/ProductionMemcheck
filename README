@@ -4,7 +4,13 @@ GIT:
         https://github.com/IcebrakerCZ/ProductionMemcheck.git
 
 NOTES:
+        Memcheck tool usable in production environment.
 
+        This memcheck targets on:
+
+                - have minimal performance degradation
+                - find leak in selected time (startable/stoppable memcheck)
+                - limit inspection on specific threads only
 
 LICENSE:
         LGPLv3+
