@@ -11,6 +11,13 @@ struct MallocInfo
 {
   MallocInfo() = default;
 
+  MallocInfo(const char* t, void* p, size_t s = 0)
+    : type(t)
+    , ptr(p)
+    , size(s)
+  {
+  }
+
   ~MallocInfo()
   {
     free(stacktrace);
@@ -33,8 +40,12 @@ struct MallocInfo
     stacktrace_size = other.stacktrace_size;
     stacktrace      = other.stacktrace;
 
+    other.type            = nullptr;
+    other.ptr             = nullptr;
+    other.count           = 0;
+    other.size            = 0;
     other.stacktrace_size = 0;
-    other.stacktrace = nullptr;
+    other.stacktrace      = nullptr;
 
     return *this;
   }
@@ -69,7 +80,7 @@ static std::mutex                  production_memcheck_map_mutex;
 #include <atomic>
 
 
-static std::atomic<std::uint64_t> free_total_size;
+static std::atomic<std::uint64_t> free_total_size {0};
 
 
 template<typename VALUE_TYPE, std::size_t SIZE = 1000000>
@@ -91,7 +102,8 @@ public:
 
       if (pos >= SIZE)
       {
-        swap_arrays_and_reserve_pos_and_collect(swap_lock, std::min(m_reserved_size.load(), SIZE));
+        swap_arrays_and_reserve_pos_and_collect(swap_lock, m_reserved_size, true);
+        // swap_arrays_and_reserve_pos_and_collect reserved slot 0 for us so use it
         pos = 0;
       }
     }
@@ -106,21 +118,22 @@ public:
   {
     std::unique_lock swap_lock(m_swap_mutex);
 
+    // Pretend that the array is full and let overyone stuck on swap_lock
     std::size_t reserved_size = m_reserved_size.exchange(SIZE);
 
-    swap_arrays_and_reserve_pos_and_collect(swap_lock, std::min(reserved_size, SIZE), /* do_reserve = */ false);
+    swap_arrays_and_reserve_pos_and_collect(swap_lock, reserved_size, false);
   }
 
 
 private:
 
-  void swap_arrays_and_reserve_pos_and_collect(std::unique_lock<std::mutex>& swap_lock, size_t reserved_size, bool do_reserve = true)
+  void swap_arrays_and_reserve_pos_and_collect(std::unique_lock<std::mutex>& swap_lock, size_t wait_on_used_size, bool do_reserve)
   {
-    ++allocations_in_overrided_function;
+    wait_on_used_size = std::min(wait_on_used_size, SIZE);
 
-    while (m_used_size != reserved_size)
+    while (m_used_size != wait_on_used_size)
     {
-      LOG_VERBOSE() << "waiting for m_used_size == reserved_size -> " << m_used_size.load() << " == " << reserved_size;
+      LOG_VERBOSE() << "waiting for m_used_size == wait_on_used_size -> " << m_used_size.load() << " == " << wait_on_used_size;
     }
 
     // Only one collect can be running at a time because we have only one array to swap.
@@ -128,15 +141,16 @@ private:
 
     std::swap(m_values, m_collect_values);
 
-    // Important: m_allocated_size and m_used_size must be reseted in this order!!!
+    size_t used_size = m_used_size;
+
+    // Important: m_used_size and m_reserved_size must be reseted in this order!!!
     m_used_size = 0;
     m_reserved_size = do_reserve ? 1 : 0;
 
+    // Allow use of the array again
     swap_lock.unlock();
 
-    collect_impl(m_collect_values, reserved_size);
-
-    --allocations_in_overrided_function;
+    collect_impl(m_collect_values, used_size);
   }
 
 
@@ -150,22 +164,21 @@ private:
     {
       MallocInfo& malloc_info = values[pos];
 
-      if (malloc_info.type != malloc_type_free)
+      if (malloc_info.type == malloc_type_free)
       {
-        production_memcheck_map.emplace(std::make_pair(malloc_info.ptr, std::move(malloc_info)));
-        continue;
+        auto i = production_memcheck_map.find(malloc_info.ptr);
+
+        if (i != production_memcheck_map.end())
+        {
+          free_total_size += i->second.size;
+
+          production_memcheck_map.erase(i);
+
+          continue;
+        }
       }
 
-      auto i = production_memcheck_map.find(malloc_info.ptr);
-
-      if (i == production_memcheck_map.end())
-      {
-        continue;
-      }
-
-      free_total_size += i->second.size;
-
-      production_memcheck_map.erase(i);
+      production_memcheck_map.emplace(std::make_pair(malloc_info.ptr, std::move(malloc_info)));
     }
 
     LOG_VERBOSE() << "production_memcheck_map->size()=" << production_memcheck_map.size();
@@ -183,5 +196,3 @@ private:
   std::array<VALUE_TYPE, SIZE> m_collect_values;
   std::mutex                   m_collect_mutex;
 };
-
-static AtomicArray<MallocInfo> production_memcheck_array;

@@ -3,19 +3,19 @@
 #include <atomic>
 
 
-static std::atomic<std::uint64_t> malloc_count;
-static std::atomic<std::uint64_t> malloc_total_size;
+static std::atomic<std::uint64_t> malloc_count {0};
+static std::atomic<std::uint64_t> malloc_total_size {0};
 
-static std::atomic<std::uint64_t> free_count;
+static std::atomic<std::uint64_t> free_count {0};
 
-static std::atomic<std::uint64_t> realloc_count;
-static std::atomic<std::uint64_t> realloc_total_size;
+static std::atomic<std::uint64_t> realloc_count {0};
+static std::atomic<std::uint64_t> realloc_total_size {0};
 
-static std::atomic<std::uint64_t> calloc_count;
-static std::atomic<std::uint64_t> calloc_total_size;
+static std::atomic<std::uint64_t> calloc_count {0};
+static std::atomic<std::uint64_t> calloc_total_size {0};
 
-static std::atomic<std::uint64_t> reallocarray_count;
-static std::atomic<std::uint64_t> reallocarray_total_size;
+static std::atomic<std::uint64_t> reallocarray_count {0};
+static std::atomic<std::uint64_t> reallocarray_total_size {0};
 
 
 PRODUCTION_MEMCHECK_SYMBOL_DEFINITION(malloc, void*, (size_t size))
@@ -32,12 +32,13 @@ PRODUCTION_MEMCHECK_SYMBOL_DEFINITION(malloc, void*, (size_t size))
 
   ++allocations_in_overrided_function;
 
-  ++malloc_count;
-  malloc_total_size += size;
-
   void *ptr = original_malloc(size);
 
-  allocations_malloc_hook(malloc_type_malloc, ptr, size);
+  if (production_memcheck_malloc(malloc_type_malloc, ptr, size))
+  {
+    ++malloc_count;
+    malloc_total_size += size;
+  }
 
   --allocations_in_overrided_function;
 
@@ -47,6 +48,11 @@ PRODUCTION_MEMCHECK_SYMBOL_DEFINITION(malloc, void*, (size_t size))
 
 PRODUCTION_MEMCHECK_SYMBOL_DEFINITION(free, void, (void* ptr))
 {
+  if (ptr == NULL)
+  {
+    return;
+  }
+
   if (original_free == NULL)
   {
     return;
@@ -60,11 +66,12 @@ PRODUCTION_MEMCHECK_SYMBOL_DEFINITION(free, void, (void* ptr))
 
   ++allocations_in_overrided_function;
 
-  ++free_count;
-
   original_free(ptr);
 
-  allocations_malloc_hook(malloc_type_free, NULL, 0, ptr);
+  if (production_memcheck_free(ptr))
+  {
+    ++free_count;
+  }
 
   --allocations_in_overrided_function;
 }
@@ -84,12 +91,13 @@ PRODUCTION_MEMCHECK_SYMBOL_DEFINITION(realloc, void*, (void* old_ptr, size_t siz
 
   ++allocations_in_overrided_function;
 
-  ++realloc_count;
-  realloc_total_size += size;
-
   void *ptr = original_realloc(old_ptr, size);
 
-  allocations_malloc_hook(malloc_type_realloc, ptr, size, old_ptr);
+  if (production_memcheck_realloc(malloc_type_realloc, ptr, size, old_ptr))
+  {
+    ++realloc_count;
+    realloc_total_size += size;
+  }
 
   --allocations_in_overrided_function;
 
@@ -111,12 +119,13 @@ PRODUCTION_MEMCHECK_SYMBOL_DEFINITION(calloc, void*, (size_t nmemb, size_t size)
 
   ++allocations_in_overrided_function;
 
-  ++calloc_count;
-  calloc_total_size += nmemb * size;
-
   void *ptr = original_calloc(nmemb, size);
 
-  allocations_malloc_hook(malloc_type_calloc, ptr, nmemb * size);
+  if (production_memcheck_malloc(malloc_type_calloc, ptr, nmemb * size))
+  {
+    ++calloc_count;
+    calloc_total_size += nmemb * size;
+  }
 
   --allocations_in_overrided_function;
 
@@ -138,12 +147,13 @@ PRODUCTION_MEMCHECK_SYMBOL_DEFINITION(reallocarray, void*, (void* old_ptr, size_
 
   ++allocations_in_overrided_function;
 
-  ++reallocarray_count;
-  reallocarray_total_size += nmemb * size;
-
   void *ptr = original_reallocarray(old_ptr, nmemb, size);
 
-  allocations_malloc_hook(malloc_type_reallocarray, ptr, nmemb * size, old_ptr);
+  if (production_memcheck_realloc(malloc_type_reallocarray, ptr, nmemb * size, old_ptr))
+  {
+    ++reallocarray_count;
+    reallocarray_total_size += nmemb * size;
+  }
 
   --allocations_in_overrided_function;
 

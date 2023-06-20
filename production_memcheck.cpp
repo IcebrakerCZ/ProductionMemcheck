@@ -1,6 +1,6 @@
 /* --------------------------------------------------------------------------------------------------------------------- */
 
-#include "logging.cpp"
+#include "production_memcheck_logging.cpp"
 
 /* --------------------------------------------------------------------------------------------------------------------- */
 
@@ -9,9 +9,6 @@ thread_local size_t allocations_in_overrided_function = 0;
 /* --------------------------------------------------------------------------------------------------------------------- */
 
 #include <atomic>
-#include <stdio.h>
-#include <dlfcn.h>
-
 
 static std::atomic<size_t>  allocations_processing_enabled {0};
 
@@ -31,20 +28,25 @@ void disable_allocations_processing()
 
 /* --------------------------------------------------------------------------------------------------------------------- */
 
-#include "atomic_array.cpp"
+#include "production_memcheck_atomic_array.cpp"
 
-static AtomicArray<MallocInfo> allocations_array;
+static AtomicArray<MallocInfo> production_memcheck_array;
 
 /* --------------------------------------------------------------------------------------------------------------------- */
 
 #include "production_memcheck_dlfcn.cpp"
 
-static void allocations_malloc_hook(const char* malloc_type, void *ptr, size_t size, void* old_ptr = NULL);
+static bool production_memcheck_free(void *ptr);
+static bool production_memcheck_malloc(const char* malloc_type, void *ptr, size_t size);
+static bool production_memcheck_realloc(const char* malloc_type, void *ptr, size_t size, void* old_ptr);
 
 #include "production_memcheck_malloc.cpp"
 #include "production_memcheck_stdlib.cpp"
 
 /* --------------------------------------------------------------------------------------------------------------------- */
+
+#include <execinfo.h>
+
 
 extern "C" {
 
@@ -54,7 +56,10 @@ void production_memcheck_finish() __attribute__((destructor));
 } // extern "C"
 
 
-void allocations_collect();
+void production_memcheck_collect_allocations();
+
+
+std::size_t production_memcheck_backtrace_depth = 10;
 
 
 void production_memcheck_init()
@@ -73,20 +78,33 @@ void production_memcheck_init()
 
   LOG_VERBOSE() << "begin";
 
-  LOG_VERBOSE() << "original_malloc="        << (void*) original_malloc;
-  LOG_VERBOSE() << "original_free="          << (void*) original_free;
-  LOG_VERBOSE() << "original_realloc="       << (void*) original_realloc;
-  LOG_VERBOSE() << "original_memalign="      << (void*) original_memalign;
-  LOG_VERBOSE() << "original_calloc="        << (void*) original_calloc;
-  LOG_VERBOSE() << "original_reallocarrayn=" << (void*) original_reallocarray;
+  LOG_VERBOSE() << "original_malloc="       << (void*) original_malloc;
+  LOG_VERBOSE() << "original_free="         << (void*) original_free;
+  LOG_VERBOSE() << "original_realloc="      << (void*) original_realloc;
+  LOG_VERBOSE() << "original_memalign="     << (void*) original_memalign;
+  LOG_VERBOSE() << "original_calloc="       << (void*) original_calloc;
+  LOG_VERBOSE() << "original_reallocarray=" << (void*) original_reallocarray;
 
   const char* enabled = getenv("PRODUCTION_MEMCHECK_ENABLED");
   if (enabled != nullptr && enabled[0] != '\0')
   {
     LOG_VERBOSE() << "enabling allocations processing due to found environment variable PRODUCTION_MEMCHECK_ENABLED set to '" << enabled << "'";
 
-    allocations_in_overrided_function = 1;
+    allocations_processing_enabled = 1;
+
     LOG_VERBOSE() << "allocations_processing_enabled=" << ++allocations_processing_enabled;
+  }
+
+  const char* backtrace_depth = getenv("PRODUCTION_MEMCHECK_DEPTH");
+  if (backtrace_depth != nullptr)
+  {
+    LOG_VERBOSE() << "Using backtrace depth from environment variable PRODUCTION_MEMCHECK_DEPTH set to '" << backtrace_depth << "'";
+
+    std::stringstream m;
+    m << backtrace_depth;
+    m >> production_memcheck_backtrace_depth;
+
+    LOG_VERBOSE() << "Set production_memcheck_backtrace_depth to " << production_memcheck_backtrace_depth;
   }
 
   LOG_VERBOSE() << "end";
@@ -105,7 +123,7 @@ void production_memcheck_finish()
 
   LOG_VERBOSE() << "allocations_processing_enabled=" << allocations_processing_enabled;
 
-  allocations_collect();
+  production_memcheck_collect_allocations();
 
   production_memcheck_map.clear();
 
@@ -123,9 +141,7 @@ size_t outfile_counter = 0;
 const char* outfile_name = "production_memcheck-";
 const char* outfile_ext  = ".txt";
 
-size_t allocations_stacktrace_min_count = 1;
-
-void allocations_collect()
+void production_memcheck_collect_allocations()
 {
   ++allocations_in_overrided_function;
 
@@ -140,9 +156,10 @@ void allocations_collect()
     const char* type;
     size_t count = 0;
     size_t size  = 0;
+    std::vector<void*> ptrs;
   };
 
-  allocations_array.collect();
+  production_memcheck_array.collect();
 
   std::lock_guard<std::mutex> lock(production_memcheck_map_mutex);
 
@@ -156,10 +173,11 @@ void allocations_collect()
       key += "\n";
     }
 
-    const auto& [iter, inserted] = stacktraces_map.insert(std::make_pair(key, StackTraceInfo(malloc_info.type)));
+    const auto& [iter, inserted] = stacktraces_map.emplace(std::make_pair(key, StackTraceInfo(malloc_info.type)));
 
     iter->second.count += 1;
     iter->second.size  += malloc_info.size;
+    iter->second.ptrs.push_back(malloc_info.ptr);
   }
   LOG_VERBOSE() << "stacktraces_map.size()=" << stacktraces_map.size();
 
@@ -171,29 +189,46 @@ void allocations_collect()
 
   std::ostringstream message;
 
-  message << "allocations_processing_enabled=" << allocations_processing_enabled << "\n";
+  message << "malloc      : calls=" << malloc_count       << " sum=" << malloc_total_size       << " bytes\n"
+          << "free        : calls=" << free_count         << " sum=" << free_total_size         << " bytes\n"
+          << "realloc     : calls=" << realloc_count      << " sum=" << realloc_total_size      << " bytes\n"
+          << "memalign    : calls=" << memalign_count     << " sum=" << memalign_total_size     << " bytes\n"
+          << "calloc      : calls=" << calloc_count       << " sum=" << calloc_total_size       << " bytes\n"
+          << "reallocarray: calls=" << reallocarray_count << " sum=" << reallocarray_total_size << " bytes\n";
 
-  message << "malloc_count="       << malloc_count       << " malloc_total_size="       << malloc_total_size       << "\n"
-          << "free_count="         << free_count         << " free_total_size="         << free_total_size         << "\n"
-          << "realloc_count="      << realloc_count      << " realloc_total_size="      << realloc_total_size      << "\n"
-          << "memalign_count="     << memalign_count     << " memalign_total_size="     << memalign_total_size     << "\n"
-          << "calloc_count="       << calloc_count       << " calloc_total_size="       << calloc_total_size       << "\n"
-          << "reallocarray_count=" << reallocarray_count << " reallocarray_total_size=" << reallocarray_total_size << "\n";
-
-  message << "stacktraces_map.size()=" << stacktraces_map.size() << "\n";
+  message << "\nFound " << stacktraces_map.size() << " items to report:\n";
 
   size_t pos = 0;
   for (const auto& [key, stacktrace_info] : stacktraces_map)
   {
     ++pos;
 
-    if (stacktrace_info.count < allocations_stacktrace_min_count)
+    message << "\nItem " << pos << ": ";
+
+    if (stacktrace_info.type == malloc_type_free)
     {
-      continue;
+      message << "invalid free";
+    }
+    else
+    {
+      message << "unfreed " << stacktrace_info.type;
     }
 
-    message << "\nunfreed " << stacktrace_info.type << " #" << pos << "/" << stacktraces_map.size() << " "
-            << stacktrace_info.count << "x total_size=" << stacktrace_info.size << ":\n" << key.c_str();
+    message << " - calls=" << stacktrace_info.count;
+
+    if (stacktrace_info.type != malloc_type_free)
+    {
+      message << " sum=" << stacktrace_info.size << " bytes";
+    }
+
+    message << ":\n" << key.c_str() << "pointers:";
+
+    for (void* ptr : stacktrace_info.ptrs)
+    {
+      message << " " << ptr;
+    }
+
+    message << "\n";
   }
 
   std::string tmp = message.str();
@@ -201,6 +236,7 @@ void allocations_collect()
   close(file);
 
   rename(outfile_tmp.c_str(), outfile.c_str());
+
 
   LOG_VERBOSE() << "stacktraces_map.size()=" << stacktraces_map.size();
 
@@ -215,31 +251,12 @@ void allocations_collect()
 
 #include <execinfo.h>
 
-static void allocations_malloc_hook(const char* malloc_type, void *ptr, size_t size, void* old_ptr)
+
+static bool production_memcheck_free(void *ptr)
 {
-  // free or one of realloc calls
-  if (old_ptr != NULL)
-  {
-    MallocInfo malloc_info;
-    malloc_info.type = malloc_type_free;
-    malloc_info.ptr  = old_ptr;
+  MallocInfo malloc_info(malloc_type_free, ptr);
 
-    allocations_array.push_back(std::move(malloc_info));
-  }
-
-  // free call only
-  if (malloc_type == NULL)
-  {
-    return;
-  }
-
-  // malloc or malloc part of realloc calls
-  MallocInfo malloc_info;
-  malloc_info.type = malloc_type;
-  malloc_info.ptr  = ptr;
-  malloc_info.size = size;
-
-  void* frames[10];
+  void* frames[production_memcheck_backtrace_depth + 1];
   malloc_info.stacktrace_size = backtrace(frames, sizeof(frames) / sizeof(void*));
 
   if (malloc_info.stacktrace_size > 1)
@@ -248,15 +265,50 @@ static void allocations_malloc_hook(const char* malloc_type, void *ptr, size_t s
 
     if (malloc_info.stacktrace == nullptr)
     {
-      malloc_info.stacktrace_size = 0;
+      return false;
     }
   }
   else
   {
-    malloc_info.stacktrace_size = 0;
+    return false;
   }
 
-  allocations_array.push_back(std::move(malloc_info));
+  production_memcheck_array.push_back(std::move(malloc_info));
+
+  return true;
+}
+
+
+static bool production_memcheck_malloc(const char* malloc_type, void *ptr, size_t size)
+{
+  MallocInfo malloc_info(malloc_type, ptr, size);
+
+  void* frames[production_memcheck_backtrace_depth + 1];
+  malloc_info.stacktrace_size = backtrace(frames, sizeof(frames) / sizeof(void*));
+
+  if (malloc_info.stacktrace_size > 1)
+  {
+    malloc_info.stacktrace = backtrace_symbols(&frames[1], --malloc_info.stacktrace_size);
+
+    if (malloc_info.stacktrace == nullptr)
+    {
+      return false;
+    }
+  }
+  else
+  {
+    return false;
+  }
+
+  production_memcheck_array.push_back(std::move(malloc_info));
+
+  return true;
+}
+
+
+static bool production_memcheck_realloc(const char* malloc_type, void *ptr, size_t size, void* old_ptr)
+{
+  return production_memcheck_free(old_ptr) && production_memcheck_malloc(malloc_type, ptr, size);
 }
 
 /* --------------------------------------------------------------------------------------------------------------------- */

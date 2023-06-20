@@ -8,7 +8,7 @@
 # Based on mutrace shell script: Copyright 2009 Lennart Poettering
 #
 
-if ! TEMP=`getopt -o +h,v --long help,verbose -n production_memcheck -- "$@"` ; then
+if ! TEMP=`getopt -o +h,v,d: --long help,verbose,depth: -n production_memcheck -- "$@"` ; then
     exit 1
 fi
 
@@ -33,6 +33,12 @@ EOF
       export PRODUCTION_MEMCHECK_VERBOSE="y"
       ;;
 
+    -d|--depth)
+      shift
+      export PRODUCTION_MEMCHECK_DEPTH="$1"
+      shift
+      ;;
+
     --)
       shift
       break
@@ -54,10 +60,13 @@ if [ x"$1" = x ] ; then
   exit 1
 fi
 
+CURDIR=`realpath "$0"`
+CURDIR=`dirname "$CURDIR"`
+
 if [ x"$LD_PRELOAD" = x ] ; then
-  export LD_PRELOAD="$(dirname $0)/libproduction_memcheck.so"
+  export LD_PRELOAD="$CURDIR/libproduction_memcheck.so"
 else
-  export LD_PRELOAD="$LD_PRELOAD:$(dirname $0)/libproduction_memcheck.so"
+  export LD_PRELOAD="$LD_PRELOAD:$CURDIR/libproduction_memcheck.so"
 fi
 
 export PRODUCTION_MEMCHECK_ENABLED="y"
