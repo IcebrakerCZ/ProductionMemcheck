@@ -8,7 +8,7 @@
 # Based on mutrace shell script: Copyright 2009 Lennart Poettering
 #
 
-if ! TEMP=`getopt -o +h --long help -n production_memcheck -- "$@"` ; then
+if ! TEMP=`getopt -o +h,v --long help,verbose -n production_memcheck -- "$@"` ; then
     exit 1
 fi
 
@@ -26,6 +26,11 @@ COMMANDS:
   -h, --help                      Show this help
 EOF
       exit 0
+      ;;
+
+    -v|--verbose)
+      shift
+      export PRODUCTION_MEMCHECK_VERBOSE="y"
       ;;
 
     --)
@@ -55,6 +60,6 @@ else
   export LD_PRELOAD="$LD_PRELOAD:$(dirname $0)/libproduction_memcheck.so"
 fi
 
-export PRODUCTION_MEMCHECK_ENABLED=y
+export PRODUCTION_MEMCHECK_ENABLED="y"
 
 exec "$@"

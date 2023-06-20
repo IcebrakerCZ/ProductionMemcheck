@@ -33,6 +33,7 @@
 *.exe
 *.out
 *.app
+test
 
 # Test outputs
 production_memcheck-*.txt
