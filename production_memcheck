@@ -8,7 +8,13 @@
 # Based on mutrace shell script: Copyright 2009 Lennart Poettering
 #
 
-if ! TEMP=`getopt -o +h,v,d: --long help,verbose,depth: -n production_memcheck -- "$@"` ; then
+# Default is to start memcheck from process beginning.
+export PRODUCTION_MEMCHECK_ENABLED="y"
+
+CURDIR=`realpath "$0"`
+CURDIR=`dirname "$CURDIR"`
+
+if ! TEMP=`getopt -o +h,v,d:,n,s:,S: --long help,verbose,depth:,no-start,start:,start-allocations:,start-deallocations:,stop:,stop-allocations:,stop-deallocations: -n production_memcheck -- "$@"` ; then
     exit 1
 fi
 
@@ -23,7 +29,16 @@ production_memcheck 0.1
 Usage: production_memcheck [OPTIONS...] APPLICATION [ARGUMENTS...]
 
 COMMANDS:
-  -h, --help                      Show this help
+  -d, --depth arg (=10)           Sets used backtrace depth.
+  -h, --help                      Show this help.
+  -n, --no-start                  Do not process allocations nor deallocations until start is used.
+  -s, --start                     Start processing allocations and deallocations.
+      --start-allocations         Start processing allocations only.
+      --start-deallocations       Start processing deallocations only.
+  -S, --stop                      Stop processing allocations and deallocations.
+      --stop-allocations          Stop processing allocations only.
+      --stop-deallocations        Stop processing deallocations only.
+  -v, --verbose                   Enable logging.
 EOF
       exit 0
       ;;
@@ -36,6 +51,47 @@ EOF
     -d|--depth)
       shift
       export PRODUCTION_MEMCHECK_DEPTH="$1"
+      shift
+      ;;
+
+    -n|--no-start)
+      shift
+      unset PRODUCTION_MEMCHECK_ENABLED
+      ;;
+
+    -s|--start)
+      shift
+      ${CURDIR}/production_memcheck_tool $1 start
+      shift
+      ;;
+
+    --start-allocations)
+      shift
+      ${CURDIR}/production_memcheck_tool $1 start allocations
+      shift
+      ;;
+
+    --start-deallocations)
+      shift
+      ${CURDIR}/production_memcheck_tool $1 start deallocations
+      shift
+      ;;
+
+    -S|--stop)
+      shift
+      ${CURDIR}/production_memcheck_tool $1 stop
+      shift
+      ;;
+
+    --stop-allocations)
+      shift
+      ${CURDIR}/production_memcheck_tool $1 stop allocations
+      shift
+      ;;
+
+    --stop-deallocations)
+      shift
+      ${CURDIR}/production_memcheck_tool $1 stop deallocations
       shift
       ;;
 
@@ -60,15 +116,18 @@ if [ x"$1" = x ] ; then
   exit 1
 fi
 
-CURDIR=`realpath "$0"`
-CURDIR=`dirname "$CURDIR"`
-
 if [ x"$LD_PRELOAD" = x ] ; then
   export LD_PRELOAD="$CURDIR/libproduction_memcheck.so"
 else
   export LD_PRELOAD="$LD_PRELOAD:$CURDIR/libproduction_memcheck.so"
 fi
 
-export PRODUCTION_MEMCHECK_ENABLED="y"
+#export GLIBCPP_FORCE_NEW="1"
+#export GLIBCXX_FORCE_NEW="1"
+
+# Default Debian debug libraries.
+#DBGPATH=/usr/lib/debug
+
+#export RUNNING_ON_VALGRIND="1"
 
 exec "$@"

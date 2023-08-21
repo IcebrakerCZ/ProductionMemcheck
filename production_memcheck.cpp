@@ -1,4 +1,4 @@
-/* --------------------------------------------------------------------------------------------------------------------- */
+/* -------------------------------------------------------------------------------------------------------------------- */
 
 #include "production_memcheck_logging.cpp"
 
@@ -8,23 +8,9 @@ thread_local size_t allocations_in_overrided_function = 0;
 
 /* --------------------------------------------------------------------------------------------------------------------- */
 
-#include <atomic>
+#include "production_memcheck_config.cpp"
 
-static std::atomic<size_t>  allocations_processing_enabled {0};
-
-void enable_allocations_processing()
-{
-  ++allocations_in_overrided_function;
-  LOG_VERBOSE() << "allocations_processing_enabled=" << ++allocations_processing_enabled;
-  --allocations_in_overrided_function;
-}
-
-void disable_allocations_processing()
-{
-  ++allocations_in_overrided_function;
-  LOG_VERBOSE() << "allocations_processing_enabled=" << --allocations_processing_enabled;
-  --allocations_in_overrided_function;
-}
+static ProductionMemcheckConfig* production_memcheck_config = nullptr;
 
 /* --------------------------------------------------------------------------------------------------------------------- */
 
@@ -85,14 +71,18 @@ void production_memcheck_init()
   LOG_VERBOSE() << "original_calloc="       << (void*) original_calloc;
   LOG_VERBOSE() << "original_reallocarray=" << (void*) original_reallocarray;
 
+  production_memcheck_config = ProductionMemcheckConfig::create();
+  assert(production_memcheck_config != nullptr);
+
   const char* enabled = getenv("PRODUCTION_MEMCHECK_ENABLED");
   if (enabled != nullptr && enabled[0] != '\0')
   {
     LOG_VERBOSE() << "enabling allocations processing due to found environment variable PRODUCTION_MEMCHECK_ENABLED set to '" << enabled << "'";
 
-    allocations_processing_enabled = 1;
+    production_memcheck_config->process_allocations   = 1;
+    production_memcheck_config->process_deallocations = 1;
 
-    LOG_VERBOSE() << "allocations_processing_enabled=" << ++allocations_processing_enabled;
+    LOG_VERBOSE() << "production_memcheck_config=" << *production_memcheck_config;
   }
 
   const char* backtrace_depth = getenv("PRODUCTION_MEMCHECK_DEPTH");
@@ -104,7 +94,7 @@ void production_memcheck_init()
     m << backtrace_depth;
     m >> production_memcheck_backtrace_depth;
 
-    LOG_VERBOSE() << "Set production_memcheck_backtrace_depth to " << production_memcheck_backtrace_depth;
+    LOG_VERBOSE() << "production_memcheck_backtrace_depth=" << production_memcheck_backtrace_depth;
   }
 
   LOG_VERBOSE() << "end";
@@ -117,11 +107,12 @@ void production_memcheck_finish()
 {
   ++allocations_in_overrided_function;
 
-  allocations_processing_enabled = 0;
+  production_memcheck_config->process_allocations   = 0;
+  production_memcheck_config->process_deallocations = 0;
 
   LOG_VERBOSE() << "begin";
 
-  LOG_VERBOSE() << "allocations_processing_enabled=" << allocations_processing_enabled;
+  LOG_VERBOSE() << "production_memcheck_config=" << *production_memcheck_config;
 
   production_memcheck_collect_allocations();
 
@@ -136,7 +127,7 @@ void production_memcheck_finish()
 
 /* --------------------------------------------------------------------------------------------------------------------- */
 
-size_t outfile_counter = 0;
+std::atomic<size_t> outfile_counter = 0;
 
 const char* outfile_name = "production_memcheck-";
 const char* outfile_ext  = ".txt";
@@ -254,6 +245,11 @@ void production_memcheck_collect_allocations()
 
 static bool production_memcheck_free(void *ptr)
 {
+  if (ptr == nullptr)
+  {
+    return false;
+  }
+
   MallocInfo malloc_info(malloc_type_free, ptr);
 
   void* frames[production_memcheck_backtrace_depth + 1];
@@ -281,6 +277,11 @@ static bool production_memcheck_free(void *ptr)
 
 static bool production_memcheck_malloc(const char* malloc_type, void *ptr, size_t size)
 {
+  if (size == 0)
+  {
+    return false;
+  }
+
   MallocInfo malloc_info(malloc_type, ptr, size);
 
   void* frames[production_memcheck_backtrace_depth + 1];
@@ -308,7 +309,7 @@ static bool production_memcheck_malloc(const char* malloc_type, void *ptr, size_
 
 static bool production_memcheck_realloc(const char* malloc_type, void *ptr, size_t size, void* old_ptr)
 {
-  return production_memcheck_free(old_ptr) && production_memcheck_malloc(malloc_type, ptr, size);
+  return production_memcheck_free(old_ptr) || production_memcheck_malloc(malloc_type, ptr, size);
 }
 
 /* --------------------------------------------------------------------------------------------------------------------- */

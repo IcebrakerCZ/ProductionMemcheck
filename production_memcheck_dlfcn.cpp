@@ -7,7 +7,7 @@
     extern "C"                                                                      \
     {                                                                               \
       typedef return_type (*symbol_name ## _signature)input_args;                   \
-      static symbol_name ## _signature  original_ ## symbol_name = NULL;            \
+      static symbol_name ## _signature  original_ ## symbol_name = nullptr;         \
     }                                                                               \
                                                                                     \
     return_type symbol_name input_args
@@ -25,7 +25,7 @@ void production_memcheck_set_rtld_next_symbol(T& t, const char* name)
 //  LOG_VERBOSE() << "dlsym(RTLD_NEXT, " << name << ")";
 
   t = (T) dlsym(RTLD_NEXT, name);
-  if (t != NULL)
+  if (t != nullptr)
   {
 //    LOG_VERBOSE() << "success " << name;
     return;
@@ -36,7 +36,7 @@ void production_memcheck_set_rtld_next_symbol(T& t, const char* name)
 //    LOG_VERBOSE() << "dlvsym(RTLD_NEXT, " << name << ", " << glibc_version << ")";
 
     t = (T) dlvsym(RTLD_NEXT, name, glibc_version);
-    if (t != NULL)
+    if (t != nullptr)
     {
 //      LOG_VERBOSE() << "success " << name << " (" << glibc_version << ")";
       return;

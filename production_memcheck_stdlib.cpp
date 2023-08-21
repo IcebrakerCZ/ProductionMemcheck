@@ -20,12 +20,12 @@ static std::atomic<std::uint64_t> reallocarray_total_size {0};
 
 PRODUCTION_MEMCHECK_SYMBOL_DEFINITION(malloc, void*, (size_t size))
 {
-  if (original_malloc == NULL)
+  if (production_memcheck_config == nullptr || original_malloc == nullptr)
   {
-    return NULL;
+    return nullptr;
   }
 
-  if (!allocations_processing_enabled || allocations_in_overrided_function)
+  if (!production_memcheck_config->process_allocations || allocations_in_overrided_function)
   {
     return original_malloc(size);
   }
@@ -48,17 +48,17 @@ PRODUCTION_MEMCHECK_SYMBOL_DEFINITION(malloc, void*, (size_t size))
 
 PRODUCTION_MEMCHECK_SYMBOL_DEFINITION(free, void, (void* ptr))
 {
-  if (ptr == NULL)
+  if (ptr == nullptr)
   {
     return;
   }
 
-  if (original_free == NULL)
+  if (production_memcheck_config == nullptr || original_free == nullptr)
   {
     return;
   }
 
-  if (!allocations_processing_enabled || allocations_in_overrided_function)
+  if (!production_memcheck_config->process_deallocations || allocations_in_overrided_function)
   {
     original_free(ptr);
     return;
@@ -79,12 +79,12 @@ PRODUCTION_MEMCHECK_SYMBOL_DEFINITION(free, void, (void* ptr))
 
 PRODUCTION_MEMCHECK_SYMBOL_DEFINITION(realloc, void*, (void* old_ptr, size_t size))
 {
-  if (original_realloc == NULL)
+  if (production_memcheck_config == nullptr || original_realloc == nullptr)
   {
-    return NULL;
+    return nullptr;
   }
 
-  if (!allocations_processing_enabled || allocations_in_overrided_function)
+  if (!(production_memcheck_config->process_allocations || production_memcheck_config->process_deallocations) || allocations_in_overrided_function)
   {
     return original_realloc(old_ptr, size);
   }
@@ -107,12 +107,12 @@ PRODUCTION_MEMCHECK_SYMBOL_DEFINITION(realloc, void*, (void* old_ptr, size_t siz
 
 PRODUCTION_MEMCHECK_SYMBOL_DEFINITION(calloc, void*, (size_t nmemb, size_t size))
 {
-  if (original_calloc == NULL)
+  if (production_memcheck_config == nullptr || original_calloc == nullptr)
   {
-    return NULL;
+    return nullptr;
   }
 
-  if (!allocations_processing_enabled || allocations_in_overrided_function)
+  if (!production_memcheck_config->process_allocations || allocations_in_overrided_function)
   {
     return original_calloc(nmemb, size);
   }
@@ -135,12 +135,12 @@ PRODUCTION_MEMCHECK_SYMBOL_DEFINITION(calloc, void*, (size_t nmemb, size_t size)
 
 PRODUCTION_MEMCHECK_SYMBOL_DEFINITION(reallocarray, void*, (void* old_ptr, size_t nmemb, size_t size))
 {
-  if (original_reallocarray == NULL)
+  if (production_memcheck_config == nullptr || original_reallocarray == nullptr)
   {
-    return NULL;
+    return nullptr;
   }
 
-  if (!allocations_processing_enabled || allocations_in_overrided_function)
+  if (!production_memcheck_config->process_allocations || allocations_in_overrided_function)
   {
     return original_reallocarray(old_ptr, nmemb, size);
   }

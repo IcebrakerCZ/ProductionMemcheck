@@ -9,12 +9,12 @@ static std::atomic<std::uint64_t> memalign_total_size {0};
 
 PRODUCTION_MEMCHECK_SYMBOL_DEFINITION(memalign, void*, (size_t alignment, size_t size))
 {
-  if (original_memalign == NULL)
+  if (production_memcheck_config == nullptr || original_memalign == nullptr)
   {
-    return NULL;
+    return nullptr;
   }
 
-  if (!allocations_processing_enabled || allocations_in_overrided_function)
+  if (!production_memcheck_config->process_allocations || allocations_in_overrided_function)
   {
     return original_memalign(alignment, size);
   }

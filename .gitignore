@@ -34,6 +34,7 @@
 *.out
 *.app
 test
+production_memcheck_tool
 
 # Test outputs
 production_memcheck-*.txt

@@ -83,7 +83,7 @@ static std::mutex                  production_memcheck_map_mutex;
 static std::atomic<std::uint64_t> free_total_size {0};
 
 
-template<typename VALUE_TYPE, std::size_t SIZE = 1000000>
+template<typename VALUE_TYPE, std::size_t SIZE = 100000>
 class AtomicArray
 {
 public:
