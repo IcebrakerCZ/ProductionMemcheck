@@ -2,10 +2,28 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <sstream>
+
+#include <unistd.h>
 
 
 int main(int  argc, char *  argv[])
 {
+  std::cout << "PID: " << getpid() << std::endl;
+
+  if (argc == 2)
+  {
+    std::stringstream ss;
+    ss << argv[1];
+
+    unsigned duration;
+    ss >> duration;
+
+    std::cout << "sleep: " << duration << "s" << std::endl;
+
+    sleep(duration);
+  }
+
   for (int i = 0; i < 2; ++i)
   {
     char* string = (char*) malloc(2048);

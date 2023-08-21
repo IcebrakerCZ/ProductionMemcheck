@@ -63,36 +63,42 @@ EOF
       shift
       ${CURDIR}/production_memcheck_tool $1 start
       shift
+      exit
       ;;
 
     --start-allocations)
       shift
       ${CURDIR}/production_memcheck_tool $1 start allocations
       shift
+      exit
       ;;
 
     --start-deallocations)
       shift
       ${CURDIR}/production_memcheck_tool $1 start deallocations
       shift
+      exit
       ;;
 
     -S|--stop)
       shift
       ${CURDIR}/production_memcheck_tool $1 stop
       shift
+      exit
       ;;
 
     --stop-allocations)
       shift
       ${CURDIR}/production_memcheck_tool $1 stop allocations
       shift
+      exit
       ;;
 
     --stop-deallocations)
       shift
       ${CURDIR}/production_memcheck_tool $1 stop deallocations
       shift
+      exit
       ;;
 
     --)
