@@ -26,7 +26,7 @@ all: test production_memcheck_tool libproduction_memcheck.so
 run: run-test-with-production-memcheck run-test-without-production-memcheck
 
 .PHONY: run-test-with-production-memcheck
-run-test-with-production-memcheck: test libproduction_memcheck.so
+run-test-with-production-memcheck: test production_memcheck_tool libproduction_memcheck.so
 	./production_memcheck ./test
 
 .PHONY: run-test-without-production-memcheck
