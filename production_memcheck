@@ -14,7 +14,7 @@ export PRODUCTION_MEMCHECK_ENABLED="y"
 CURDIR=`realpath "$0"`
 CURDIR=`dirname "$CURDIR"`
 
-if ! TEMP=`getopt -o +h,v,d:,n,s:,S: --long help,verbose,depth:,no-start,start:,start-allocations:,start-deallocations:,stop:,stop-allocations:,stop-deallocations: -n production_memcheck -- "$@"` ; then
+if ! TEMP=`getopt -o +h,v,d:,n,s:,S:,c: --long help,verbose,depth:,no-start,start:,start-allocations:,start-deallocations:,stop:,stop-allocations:,stop-deallocations:,collect: -n production_memcheck -- "$@"` ; then
     exit 1
 fi
 
@@ -38,6 +38,7 @@ COMMANDS:
   -S, --stop                      Stop processing allocations and deallocations.
       --stop-allocations          Stop processing allocations only.
       --stop-deallocations        Stop processing deallocations only.
+  -c, --collect                   Collect saved (de)allocations and write stats to output file.
   -v, --verbose                   Enable logging.
 EOF
       exit 0
@@ -97,6 +98,13 @@ EOF
     --stop-deallocations)
       shift
       ${CURDIR}/production_memcheck_tool $1 stop deallocations
+      shift
+      exit
+      ;;
+
+    -c|--collect)
+      shift
+      ${CURDIR}/production_memcheck_tool $1 collect
       shift
       exit
       ;;

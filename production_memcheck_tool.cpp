@@ -11,7 +11,7 @@ int main(int argc, char* argv[])
     std::cerr << std::endl
               << "ERROR: wrong number of cmdline arguments " << argc << std::endl
               << std::endl
-              << "Usage: " << argv[0] << " PID [(start|stop) [allocations|deallocations]]" << std::endl
+              << "Usage: " << argv[0] << " PID [(start|stop|collect) [allocations|deallocations]]" << std::endl
               << std::endl;
     return 1;
   }
@@ -42,7 +42,11 @@ int main(int argc, char* argv[])
 
   std::string action = argv[2];
   std::string type   = argc == 4 ? argv[3] : "";
-  if (action == "start")
+  if (action == "collect")
+  {
+    config->collect = 1;
+  }
+  else if (action == "start")
   {
     if (type == "allocations")
     {

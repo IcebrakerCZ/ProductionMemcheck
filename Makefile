@@ -58,7 +58,7 @@ test: $(TEST_OBJS)
 
 TOOL_SRCS = production_memcheck_tool.cpp
 TOOL_OBJS = $(TOOL_SRCS:.cpp=.o)
-$(TOOL_OBJS): %.o: %.cpp
+$(TOOL_OBJS): %.o: %.cpp production_memcheck_config.cpp
 	$(CXX) $(TOOL_CXXFLAGS) -c -o $@ $<
 
 production_memcheck_tool: $(TOOL_OBJS)
@@ -67,7 +67,7 @@ production_memcheck_tool: $(TOOL_OBJS)
 
 LIB_SRCS = production_memcheck.cpp
 LIB_OBJS = $(LIB_SRCS:.cpp=.o)
-$(LIB_OBJS): %.o: %.cpp glibc_versions.h production_memcheck_logging.cpp production_memcheck_dlfcn.cpp production_memcheck_malloc.cpp production_memcheck_stdlib.cpp production_memcheck_tcmalloc.cpp production_memcheck_atomic_array.cpp
+$(LIB_OBJS): %.o: %.cpp glibc_versions.h production_memcheck_config.cpp production_memcheck_logging.cpp production_memcheck_dlfcn.cpp production_memcheck_malloc.cpp production_memcheck_stdlib.cpp production_memcheck_tcmalloc.cpp production_memcheck_atomic_array.cpp
 	$(CXX) $(LIB_CXXFLAGS) -c -o $@ $<
 
 libproduction_memcheck.so: $(LIB_OBJS)

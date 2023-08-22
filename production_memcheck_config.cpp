@@ -14,6 +14,7 @@ struct ProductionMemcheckConfig
 {
   std::atomic<size_t> process_allocations {0};
   std::atomic<size_t> process_deallocations {0};
+  std::atomic<size_t> collect {0};
 
 
   static char shm_path[1024];
@@ -76,7 +77,7 @@ std::ostream& operator<<(std::ostream& os, const ProductionMemcheckConfig& confi
 {
   os << "{process_allocations=" << config.process_allocations
      << ", process_deallocations=" << config.process_deallocations
-     << "}";
+     << ", collect=" << config.collect << "}";
 
   return os;
 }

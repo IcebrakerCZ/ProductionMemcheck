@@ -254,6 +254,11 @@ void production_memcheck_collect_allocations()
 
 static bool production_memcheck_free(void *ptr)
 {
+  if (production_memcheck_config->collect.exchange(0))
+  {
+    production_memcheck_collect_allocations();
+  }
+
   if (ptr == nullptr)
   {
     return false;
@@ -286,6 +291,11 @@ static bool production_memcheck_free(void *ptr)
 
 static bool production_memcheck_malloc(const char* malloc_type, void *ptr, size_t size)
 {
+  if (production_memcheck_config->collect.exchange(0))
+  {
+    production_memcheck_collect_allocations();
+  }
+
   if (size == 0)
   {
     return false;
