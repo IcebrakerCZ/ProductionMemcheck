@@ -20,11 +20,11 @@
  * Get newest symbol available including newest versioned glibc symbols.
  */
 template<typename T>
-void production_memcheck_set_rtld_next_symbol(T& t, const char* name)
+void production_memcheck_set_rtld_next_symbol(T& t, const char* name, void* handle = RTLD_NEXT)
 {
 //  LOG_VERBOSE() << "dlsym(RTLD_NEXT, " << name << ")";
 
-  t = (T) dlsym(RTLD_NEXT, name);
+  t = (T) dlsym(handle, name);
   if (t != nullptr)
   {
 //    LOG_VERBOSE() << "success " << name;
@@ -35,7 +35,7 @@ void production_memcheck_set_rtld_next_symbol(T& t, const char* name)
   {
 //    LOG_VERBOSE() << "dlvsym(RTLD_NEXT, " << name << ", " << glibc_version << ")";
 
-    t = (T) dlvsym(RTLD_NEXT, name, glibc_version);
+    t = (T) dlvsym(handle, name, glibc_version);
     if (t != nullptr)
     {
 //      LOG_VERBOSE() << "success " << name << " (" << glibc_version << ")";

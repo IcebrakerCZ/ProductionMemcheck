@@ -1,4 +1,4 @@
-CXXFLAGS  = -m64 -std=c++17 -Wall -O0 -ggdb3 -fno-omit-frame-pointer
+CXXFLAGS  = -m64 -std=c++17 -Wall -O2 -ggdb3 -fno-omit-frame-pointer
 CXXFLAGS += $(EXTRA_CXXFLAGS)
 
 LDFLAGS   = -Wl,--export-dynamic
@@ -15,6 +15,7 @@ TOOL_LDFLAGS  += $(LDFLAGS) -lrt
 TEST_CXXFLAGS += $(CXXFLAGS) -fPIE -DPIE
 TEST_CXXFLAGS += $(CXXFLAGS) -Wno-unused-result -Wno-deprecated-declarations
 TEST_LDFLAGS  += $(LDFLAGS)
+#TEST_LDFLAGS  += $(PWD)/libtcmalloc.a -lunwind -lpthread
 
 
 .PHONY: all
@@ -66,7 +67,7 @@ production_memcheck_tool: $(TOOL_OBJS)
 
 LIB_SRCS = production_memcheck.cpp
 LIB_OBJS = $(LIB_SRCS:.cpp=.o)
-$(LIB_OBJS): %.o: %.cpp glibc_versions.h production_memcheck_logging.cpp production_memcheck_dlfcn.cpp production_memcheck_malloc.cpp production_memcheck_stdlib.cpp production_memcheck_atomic_array.cpp
+$(LIB_OBJS): %.o: %.cpp glibc_versions.h production_memcheck_logging.cpp production_memcheck_dlfcn.cpp production_memcheck_malloc.cpp production_memcheck_stdlib.cpp production_memcheck_tcmalloc.cpp production_memcheck_atomic_array.cpp
 	$(CXX) $(LIB_CXXFLAGS) -c -o $@ $<
 
 libproduction_memcheck.so: $(LIB_OBJS)

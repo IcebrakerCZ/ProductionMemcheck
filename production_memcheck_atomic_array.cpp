@@ -20,7 +20,10 @@ struct MallocInfo
 
   ~MallocInfo()
   {
-    free(stacktrace);
+    if (stacktrace)
+    {
+      free(stacktrace);
+    }
   }
 
   MallocInfo(const MallocInfo&) = delete;
@@ -162,7 +165,7 @@ private:
 
     for (std::size_t pos = 0; pos < size; ++pos)
     {
-      MallocInfo& malloc_info = values[pos];
+      MallocInfo&& malloc_info = std::move(values[pos]);
 
       if (malloc_info.type == malloc_type_free)
       {

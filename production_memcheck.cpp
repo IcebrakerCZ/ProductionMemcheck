@@ -28,6 +28,7 @@ static bool production_memcheck_realloc(const char* malloc_type, void *ptr, size
 
 #include "production_memcheck_malloc.cpp"
 #include "production_memcheck_stdlib.cpp"
+#include "production_memcheck_tcmalloc.cpp"
 
 /* --------------------------------------------------------------------------------------------------------------------- */
 
@@ -59,6 +60,8 @@ void production_memcheck_init()
   PRODUCTION_MEMCHECK_INITIALIZE_SYMBOL(reallocarray);
 
   PRODUCTION_MEMCHECK_INITIALIZE_SYMBOL(memalign);
+
+  production_memcheck_init_tcmalloc();
 
   logging_init();
 
@@ -109,6 +112,12 @@ void production_memcheck_finish()
 
   production_memcheck_config->process_allocations   = 0;
   production_memcheck_config->process_deallocations = 0;
+
+  if (production_memcheck_finish_tcmalloc())
+  {
+    // Do not allow to free pointers from tcmalloc by glibc free.
+    original_free = nullptr;
+  }
 
   LOG_VERBOSE() << "begin";
 
