@@ -26,6 +26,11 @@ int main(int  argc, char *  argv[])
 
   for (int i = 0; i < 2; ++i)
   {
+    if (i == 1)
+    {
+      fork();
+    }
+
     char* string = (char*) malloc(2048);
     std::strncpy(string, "Hello Malloc!", 2048);
 

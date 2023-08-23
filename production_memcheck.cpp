@@ -8,9 +8,11 @@ thread_local size_t allocations_in_overrided_function = 0;
 
 /* --------------------------------------------------------------------------------------------------------------------- */
 
-#include "production_memcheck_config.cpp"
+#include "production_memcheck_dlfcn.cpp"
 
-static ProductionMemcheckConfig* production_memcheck_config = nullptr;
+/* --------------------------------------------------------------------------------------------------------------------- */
+
+#include "production_memcheck_config.cpp"
 
 /* --------------------------------------------------------------------------------------------------------------------- */
 
@@ -19,8 +21,6 @@ static ProductionMemcheckConfig* production_memcheck_config = nullptr;
 static AtomicArray<MallocInfo> production_memcheck_array;
 
 /* --------------------------------------------------------------------------------------------------------------------- */
-
-#include "production_memcheck_dlfcn.cpp"
 
 static bool production_memcheck_free(void *ptr);
 static bool production_memcheck_malloc(const char* malloc_type, void *ptr, size_t size);
@@ -58,8 +58,8 @@ void production_memcheck_init()
   PRODUCTION_MEMCHECK_INITIALIZE_SYMBOL(realloc);
   PRODUCTION_MEMCHECK_INITIALIZE_SYMBOL(calloc);
   PRODUCTION_MEMCHECK_INITIALIZE_SYMBOL(reallocarray);
-
   PRODUCTION_MEMCHECK_INITIALIZE_SYMBOL(memalign);
+  PRODUCTION_MEMCHECK_INITIALIZE_SYMBOL(fork);
 
   production_memcheck_init_tcmalloc();
 
@@ -70,9 +70,10 @@ void production_memcheck_init()
   LOG_VERBOSE() << "original_malloc="       << (void*) original_malloc;
   LOG_VERBOSE() << "original_free="         << (void*) original_free;
   LOG_VERBOSE() << "original_realloc="      << (void*) original_realloc;
-  LOG_VERBOSE() << "original_memalign="     << (void*) original_memalign;
   LOG_VERBOSE() << "original_calloc="       << (void*) original_calloc;
   LOG_VERBOSE() << "original_reallocarray=" << (void*) original_reallocarray;
+  LOG_VERBOSE() << "original_memalign="     << (void*) original_memalign;
+  LOG_VERBOSE() << "original_fork="         << (void*) original_fork;
 
   production_memcheck_config = ProductionMemcheckConfig::create();
   assert(production_memcheck_config != nullptr);
